@@ -5,6 +5,7 @@ Extends PythonEnv to provide per-rollout sandbox isolation with a persistent
 Python REPL and file exploration tools for analyzing telemetry data.
 """
 
+import asyncio
 import json
 import os
 import shlex
@@ -120,10 +121,12 @@ class OpenRCAEnv(PythonEnv):
             await self._wait_for_sandbox_ready(sandbox_state, sandbox_id)
 
         # Create tar archive of system data and upload to sandbox
-        tmp_tar = tempfile.mktemp(suffix=".tar.gz")
+        fd, tmp_tar = tempfile.mkstemp(suffix=".tar.gz")
+        os.close(fd)
         try:
-            with tarfile.open(tmp_tar, "w:gz") as tar:
-                tar.add(local_system_dir, arcname=system)
+            await asyncio.to_thread(
+                self._create_tar, tmp_tar, local_system_dir, system
+            )
 
             remote_tar = "/tmp/openrca_data.tar.gz"
             await self.sandbox_client.upload_file(
@@ -137,8 +140,19 @@ class OpenRCAEnv(PythonEnv):
                 sandbox_state,
             )
         finally:
-            if os.path.exists(tmp_tar):
-                os.unlink(tmp_tar)
+            await asyncio.to_thread(self._cleanup_tar, tmp_tar)
+
+    @staticmethod
+    def _create_tar(tmp_tar: str, local_dir: str, arcname: str) -> None:
+        """Create a gzipped tar archive (runs in a thread)."""
+        with tarfile.open(tmp_tar, "w:gz") as tar:
+            tar.add(local_dir, arcname=arcname)
+
+    @staticmethod
+    def _cleanup_tar(tmp_tar: str) -> None:
+        """Remove temporary tar file if it exists (runs in a thread)."""
+        if os.path.exists(tmp_tar):
+            os.unlink(tmp_tar)
 
     def update_tool_args(
         self,
