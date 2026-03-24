@@ -1,0 +1,23 @@
+[project]
+name = "openrca"
+description = "OpenRCA root cause analysis benchmark environment for Verifiers (ICLR 2025)"
+tags = ["multi-turn", "tool-use", "devops", "rca", "eval", "train"]
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "verifiers>=0.1.11",
+    "pandas",
+    "numpy",
+    "pytz",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build]
+include = ["openrca.py", "pyproject.toml"]
+
+[tool.verifiers.eval]
+num_examples = 20
+rollouts_per_example = 1
