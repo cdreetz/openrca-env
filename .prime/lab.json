@@ -1,0 +1,12 @@
+{
+  "choices": {
+    "agents": [
+      "codex",
+      "claude",
+      "cursor"
+    ],
+    "primary_agent": "codex",
+    "use_multiple_agents": true
+  },
+  "setup_source": "prime lab setup"
+}
