@@ -176,7 +176,7 @@ class OpenRCAEnv(PythonEnv):
         full_path = os.path.normpath(
             os.path.join(self.sandbox_data_dir, path)
         )
-        if not full_path.startswith(self.sandbox_data_dir):
+        if full_path != self.sandbox_data_dir and not full_path.startswith(self.sandbox_data_dir + os.sep):
             return "Error: Access denied. Path must be within the data directory."
 
         # Run ls inside the sandbox

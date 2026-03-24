@@ -64,20 +64,31 @@ prime eval run openrca -m gpt-4.1-mini -n 20 -r 1 -s
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `data_dir` | `"dataset"` | Path to the OpenRCA dataset directory |
+| `data_dir` | `"dataset"` | Path to the OpenRCA dataset directory on the host |
 | `systems` | All systems | List of systems to include: `"Bank"`, `"Market/cloudbed-1"`, `"Market/cloudbed-2"`, `"Telecom"` |
 | `max_turns` | `30` | Maximum tool-use turns per rollout |
 | `num_examples` | `-1` | Number of examples (-1 for all) |
+| `docker_image` | `"python:3.11-slim"` | Docker image for sandbox containers |
+| `sandbox_data_dir` | `"/data/openrca"` | Path inside sandbox where telemetry data is placed |
 
 ## How It Works
 
-The environment provides two tools for the model to analyze telemetry data:
+Each rollout runs in its own **isolated sandbox container** (via `PythonEnv` → `SandboxEnv`). This ensures that even if the agent writes or deletes files via the Python REPL, it cannot affect other concurrent rollouts.
 
-1. **`execute_python`** — Runs Python code in a persistent environment with pandas, numpy, and other libraries pre-imported. The `DATA_DIR` variable points to the telemetry data root.
+Per-rollout flow:
+1. A sandbox container is created via the Prime Sandboxes API
+2. The relevant system's telemetry data is tar'd, uploaded, and extracted into the sandbox
+3. A persistent Python REPL worker is initialized with common imports and `DATA_DIR`
 
-2. **`list_directory`** — Lists files and directories within the telemetry data directory for exploration.
+The environment exposes two tools:
+
+1. **`python`** — Executes code in a persistent Python REPL inside the sandbox, with pandas, numpy, and other libraries pre-imported. The `DATA_DIR` variable points to the telemetry data root.
+
+2. **`list_directory`** — Lists files and directories within the telemetry data directory inside the sandbox.
 
 The model iteratively analyzes metrics, traces, and logs to identify root causes, then provides a structured JSON answer with the root cause datetime, component, and/or reason.
+
+For large datasets, build a custom Docker image with data pre-loaded and pass it via `docker_image` to avoid per-rollout uploads.
 
 ### Scoring
 
