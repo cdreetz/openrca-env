@@ -19,6 +19,7 @@ import json
 import os
 import re
 import sys
+import threading
 from datetime import datetime
 from io import StringIO
 
@@ -654,6 +655,8 @@ class OpenRCAEnv(vf.StatefulToolEnv):
     systems to identify root causes of failures.
     """
 
+    _exec_lock = threading.Lock()
+
     def __init__(self, data_dir: str, **kwargs: object) -> None:
         super().__init__(**kwargs)
         self.data_dir = os.path.abspath(data_dir)
@@ -712,66 +715,67 @@ class OpenRCAEnv(vf.StatefulToolEnv):
         """
 
         def _run() -> str:
-            old_stdout = sys.stdout
-            old_stderr = sys.stderr
-            captured = StringIO()
-            sys.stdout = captured
-            sys.stderr = captured
+            with OpenRCAEnv._exec_lock:
+                old_stdout = sys.stdout
+                old_stderr = sys.stderr
+                captured = StringIO()
+                sys.stdout = captured
+                sys.stderr = captured
 
-            try:
-                tree = ast.parse(code)
-                last_value = None
+                try:
+                    tree = ast.parse(code)
+                    last_value = None
 
-                if tree.body and isinstance(tree.body[-1], ast.Expr):
-                    last_expr = tree.body.pop()
-                    if tree.body:
-                        module = ast.Module(
-                            body=tree.body, type_ignores=[]
+                    if tree.body and isinstance(tree.body[-1], ast.Expr):
+                        last_expr = tree.body.pop()
+                        if tree.body:
+                            module = ast.Module(
+                                body=tree.body, type_ignores=[]
+                            )
+                            exec(  # noqa: S102
+                                compile(module, "<code>", "exec"), namespace
+                            )
+                        last_value = eval(  # noqa: S307
+                            compile(
+                                ast.Expression(body=last_expr.value),
+                                "<code>",
+                                "eval",
+                            ),
+                            namespace,
                         )
-                        exec(  # noqa: S102
-                            compile(module, "<code>", "exec"), namespace
-                        )
-                    last_value = eval(  # noqa: S307
-                        compile(
-                            ast.Expression(body=last_expr.value),
-                            "<code>",
-                            "eval",
-                        ),
-                        namespace,
-                    )
-                else:
-                    exec(  # noqa: S102
-                        compile(tree, "<code>", "exec"), namespace
-                    )
-
-                output = captured.getvalue()
-                if last_value is not None:
-                    value_str = str(last_value)
-                    if output:
-                        output = output.rstrip("\n") + "\n" + value_str
                     else:
-                        output = value_str
+                        exec(  # noqa: S102
+                            compile(tree, "<code>", "exec"), namespace
+                        )
 
-                if not output or not output.strip():
-                    return "Code executed successfully (no output)."
+                    output = captured.getvalue()
+                    if last_value is not None:
+                        value_str = str(last_value)
+                        if output:
+                            output = output.rstrip("\n") + "\n" + value_str
+                        else:
+                            output = value_str
 
-                if len(output) > MAX_OUTPUT_CHARS:
-                    output = (
-                        output[:MAX_OUTPUT_CHARS]
-                        + "\n\n... [Output truncated. Use .head() or more "
-                        "specific queries to limit output.]"
-                    )
+                    if not output or not output.strip():
+                        return "Code executed successfully (no output)."
 
-                return output.strip()
-            except Exception as e:
-                output = captured.getvalue()
-                error_msg = f"{type(e).__name__}: {e}"
-                if output and output.strip():
-                    return f"{output.rstrip()}\n\n{error_msg}"
-                return error_msg
-            finally:
-                sys.stdout = old_stdout
-                sys.stderr = old_stderr
+                    if len(output) > MAX_OUTPUT_CHARS:
+                        output = (
+                            output[:MAX_OUTPUT_CHARS]
+                            + "\n\n... [Output truncated. Use .head() or more "
+                            "specific queries to limit output.]"
+                        )
+
+                    return output.strip()
+                except Exception as e:
+                    output = captured.getvalue()
+                    error_msg = f"{type(e).__name__}: {e}"
+                    if output and output.strip():
+                        return f"{output.rstrip()}\n\n{error_msg}"
+                    return error_msg
+                finally:
+                    sys.stdout = old_stdout
+                    sys.stderr = old_stderr
 
         try:
             return await asyncio.wait_for(
