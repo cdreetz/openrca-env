@@ -1,8 +1,11 @@
 """
-OpenRCA SandboxEnv implementation.
+OpenRCA Verifiers Environment.
 
-Extends PythonEnv to provide per-rollout sandbox isolation with a persistent
-Python REPL and file exploration tools for analyzing telemetry data.
+Implements the OpenRCA benchmark (ICLR 2025) as a Verifiers environment for
+evaluating and training LLMs on root cause analysis of software failures.
+
+Reference: https://github.com/microsoft/OpenRCA
+Paper: https://openreview.net/forum?id=M4qNIzQYpd
 """
 
 import json
@@ -15,8 +18,16 @@ import verifiers as vf
 from verifiers.envs.python_env import PythonEnv
 from verifiers.envs.sandbox_env import SandboxState
 
+from src.dataset import build_dataset
+from src.download import ensure_dataset
+from src.evaluation import difficulty_metric, openrca_score
+from src.prompts import ALL_SYSTEMS, SYSTEM_INFO, SYSTEM_PROMPT
+
 # HuggingFace dataset repo for the OpenRCA telemetry data
 HF_REPO_ID = "cdreetz/OpenRCA"
+
+
+# ─── Environment ─────────────────────────────────────────────────────────
 
 
 class OpenRCAEnv(PythonEnv):
@@ -65,31 +76,6 @@ class OpenRCAEnv(PythonEnv):
             self.list_directory,
             args_to_skip=["sandbox_id", "sandbox_state"],
         )
-
-    @staticmethod
-    def _extract_task_dates(prompt: list[dict]) -> set[str]:
-        """Extract telemetry date directories referenced in the task prompt."""
-        import calendar
-
-        month_map = {m.lower(): i for i, m in enumerate(calendar.month_name) if m}
-        dates = set()
-        user_content = ""
-        for msg in prompt:
-            if msg.get("role") == "user":
-                user_content += " " + msg.get("content", "")
-
-        for match in re.finditer(
-            r"(January|February|March|April|May|June|July|August|"
-            r"September|October|November|December)\s+(\d{1,2}),?\s+(\d{4})",
-            user_content,
-            re.IGNORECASE,
-        ):
-            month = month_map[match.group(1).lower()]
-            day = int(match.group(2))
-            year = int(match.group(3))
-            dates.add(f"{year}_{month:02d}_{day:02d}")
-
-        return dates
 
     async def setup_state(self, state: vf.State, **kwargs: Any) -> vf.State:
         """Create sandbox, download system data, and initialize Python REPL."""
@@ -229,3 +215,65 @@ class OpenRCAEnv(PythonEnv):
             sandbox_id,
             sandbox_state,
         )
+
+
+# ─── Entry point ─────────────────────────────────────────────────────────
+
+
+def load_environment(
+    data_dir: str = "dataset",
+    systems: list[str] | None = None,
+    max_turns: int = 30,
+    num_examples: int = -1,
+    docker_image: str = "python:3.11-slim",
+    sandbox_data_dir: str = "/data/openrca",
+) -> vf.Environment:
+    """Load the OpenRCA root cause analysis environment.
+
+    Args:
+        data_dir: Path to the dataset directory containing query.csv files.
+            Auto-downloaded from HuggingFace if not present.
+        systems: List of systems to include. Options: "Bank",
+            "Market/cloudbed-1", "Market/cloudbed-2", "Telecom".
+            Defaults to all systems.
+        max_turns: Maximum number of tool-use turns per rollout.
+        num_examples: Number of examples to use. -1 for all.
+        docker_image: Docker image for sandbox containers.
+        sandbox_data_dir: Path inside the sandbox where telemetry data is
+            placed. The agent accesses data at this path via DATA_DIR.
+
+    Returns:
+        A Verifiers Environment ready for evaluation or training.
+    """
+    if systems is None:
+        systems = list(ALL_SYSTEMS)
+
+    for system in systems:
+        if system not in SYSTEM_INFO:
+            raise ValueError(
+                f"Unknown system '{system}'. "
+                f"Valid systems: {list(SYSTEM_INFO.keys())}"
+            )
+
+    # Auto-download dataset from HuggingFace if not present locally
+    data_dir = ensure_dataset(data_dir)
+
+    dataset = build_dataset(data_dir, systems)
+
+    if 0 < num_examples < len(dataset):
+        dataset = dataset.select(range(num_examples))
+
+    rubric = vf.Rubric(funcs=[openrca_score])
+    rubric.add_metric(difficulty_metric)
+
+    env = OpenRCAEnv(
+        data_dir=data_dir,
+        sandbox_data_dir=sandbox_data_dir,
+        docker_image=docker_image,
+        dataset=dataset,
+        rubric=rubric,
+        system_prompt=SYSTEM_PROMPT,
+        max_turns=max_turns,
+    )
+
+    return env

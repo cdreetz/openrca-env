@@ -11,7 +11,7 @@ import os
 import pandas as pd
 from datasets import Dataset
 
-from .prompts import SYSTEM_INFO
+from src.prompts import SYSTEM_INFO
 
 
 def build_dataset(data_dir: str, systems: list[str]) -> Dataset:
@@ -36,11 +36,9 @@ def build_dataset(data_dir: str, systems: list[str]) -> Dataset:
         if not os.path.exists(query_path):
             raise FileNotFoundError(
                 f"Query file not found at {query_path}. "
-                f"Install gdown (`pip install gdown`) and re-run to "
-                f"auto-download, or manually download from "
-                f"https://drive.google.com/drive/folders/"
-                f"1wGiEnu4OkWrjPxfx5ZTROnU37-5UDoPM "
-                f"and place it in '{data_dir}/'."
+                f"Install huggingface_hub and re-run to auto-download, "
+                f"or run: python -c \"from src.download import download_dataset; "
+                f"download_dataset('{data_dir}')\""
             )
 
         df = pd.read_csv(query_path)
