@@ -21,18 +21,26 @@ def load_environment(
     systems: list[str] | None = None,
     max_turns: int = 30,
     num_examples: int = -1,
+    docker_image: str = "python:3.11-slim",
+    sandbox_data_dir: str = "/data/openrca",
 ) -> vf.Environment:
     """Load the OpenRCA root cause analysis environment.
 
     Args:
-        data_dir: Path to the OpenRCA dataset directory containing system
-            subdirectories (Bank/, Market/, Telecom/) with query.csv and
-            telemetry data.
+        data_dir: Path to the OpenRCA dataset directory on the host machine,
+            containing system subdirectories (Bank/, Market/, Telecom/) with
+            query.csv and telemetry data. Used both for building the task
+            dataset and for uploading telemetry data into per-rollout sandboxes.
         systems: List of systems to include. Options: "Bank",
             "Market/cloudbed-1", "Market/cloudbed-2", "Telecom".
             Defaults to all systems.
         max_turns: Maximum number of tool-use turns per rollout.
         num_examples: Number of examples to use. -1 for all.
+        docker_image: Docker image for sandbox containers. Use a custom image
+            with pre-loaded data to avoid per-rollout uploads for large
+            datasets.
+        sandbox_data_dir: Path inside the sandbox where telemetry data is
+            placed. The agent accesses data at this path via DATA_DIR.
 
     Returns:
         A Verifiers Environment ready for evaluation or training.
@@ -57,6 +65,8 @@ def load_environment(
 
     env = OpenRCAEnv(
         data_dir=data_dir,
+        sandbox_data_dir=sandbox_data_dir,
+        docker_image=docker_image,
         dataset=dataset,
         rubric=rubric,
         system_prompt=SYSTEM_PROMPT,

@@ -63,10 +63,10 @@ def build_dataset(data_dir: str, systems: list[str]) -> Dataset:
                 f"{info['candidates']}\n\n"
                 f"## TASK\n\n"
                 f"{instruction}\n\n"
-                f"Use the `execute_python` tool to write and run Python code "
-                f"for analyzing the telemetry data. Use the `list_directory` "
-                f"tool to explore available data files. The `DATA_DIR` variable "
-                f"in the Python environment points to the telemetry data root."
+                f"Use the `python` tool to write and run Python code for "
+                f"analyzing the telemetry data. Use the `list_directory` tool "
+                f"to explore available data files. The `DATA_DIR` variable in "
+                f"the Python environment points to the telemetry data root."
             )
 
             rows.append(
