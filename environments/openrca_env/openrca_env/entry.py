@@ -11,6 +11,7 @@ Paper: https://openreview.net/forum?id=M4qNIzQYpd
 import verifiers as vf
 
 from .dataset import build_dataset
+from .download import ensure_dataset
 from .environment import OpenRCAEnv
 from .evaluation import difficulty_metric, openrca_score
 from .prompts import ALL_SYSTEMS, SYSTEM_INFO, SYSTEM_PROMPT
@@ -54,6 +55,9 @@ def load_environment(
                 f"Unknown system '{system}'. "
                 f"Valid systems: {list(SYSTEM_INFO.keys())}"
             )
+
+    # Auto-download dataset from Google Drive if not present locally
+    data_dir = ensure_dataset(data_dir)
 
     dataset = build_dataset(data_dir, systems)
 

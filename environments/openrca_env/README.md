@@ -16,28 +16,46 @@ Tasks range from easy (identify one root cause element) to hard (identify all th
 
 ### Prerequisites
 
-1. Download the OpenRCA telemetry dataset from [Google Drive](https://drive.google.com/drive/folders/1wGiEnu4OkWrjPxfx5ZTROnU37-5UDoPM)
-2. Place the data so the directory structure is:
-   ```
-   dataset/
-   ├── Bank/
-   │   ├── query.csv
-   │   ├── record.csv
-   │   └── telemetry/
-   ├── Market/
-   │   ├── cloudbed-1/
-   │   │   ├── query.csv
-   │   │   ├── record.csv
-   │   │   └── telemetry/
-   │   └── cloudbed-2/
-   │       ├── query.csv
-   │       ├── record.csv
-   │       └── telemetry/
-   └── Telecom/
-       ├── query.csv
-       ├── record.csv
-       └── telemetry/
-   ```
+The dataset (~68 GB) is **downloaded automatically** from Google Drive on first run. Just install and go — if the `dataset/` directory is missing, it will be fetched via `gdown`.
+
+To download manually or ahead of time:
+
+```python
+from openrca import download_dataset
+download_dataset("dataset")
+```
+
+Or from the command line:
+
+```bash
+python -c "from openrca import download_dataset; download_dataset('dataset')"
+```
+
+<details>
+<summary>Expected directory structure after download</summary>
+
+```
+dataset/
+├── Bank/
+│   ├── query.csv
+│   ├── record.csv
+│   └── telemetry/
+├── Market/
+│   ├── cloudbed-1/
+│   │   ├── query.csv
+│   │   ├── record.csv
+│   │   └── telemetry/
+│   └── cloudbed-2/
+│       ├── query.csv
+│       ├── record.csv
+│       └── telemetry/
+└── Telecom/
+    ├── query.csv
+    ├── record.csv
+    └── telemetry/
+```
+
+</details>
 
 ### Installation
 

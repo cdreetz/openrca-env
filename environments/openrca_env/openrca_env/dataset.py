@@ -36,7 +36,8 @@ def build_dataset(data_dir: str, systems: list[str]) -> Dataset:
         if not os.path.exists(query_path):
             raise FileNotFoundError(
                 f"Query file not found at {query_path}. "
-                f"Please download the OpenRCA dataset from "
+                f"Install gdown (`pip install gdown`) and re-run to "
+                f"auto-download, or manually download from "
                 f"https://drive.google.com/drive/folders/"
                 f"1wGiEnu4OkWrjPxfx5ZTROnU37-5UDoPM "
                 f"and place it in '{data_dir}/'."

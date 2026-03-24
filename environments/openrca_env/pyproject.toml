@@ -1,5 +1,5 @@
 [project]
-name = "openrca"
+name = "openrca-env"
 description = "OpenRCA root cause analysis benchmark environment for Verifiers (ICLR 2025)"
 tags = ["multi-turn", "tool-use", "devops", "rca", "eval", "train"]
 version = "0.1.0"
@@ -10,6 +10,7 @@ dependencies = [
     "pandas",
     "numpy",
     "pytz",
+    "huggingface_hub",
 ]
 
 [build-system]
