@@ -14,53 +14,20 @@ Tasks range from easy (identify one root cause element) to hard (identify all th
 
 ## Setup
 
-### Prerequisites
+### Data
 
-The dataset (~68 GB) is **downloaded automatically** from Google Drive on first run. Just install and go — if the `dataset/` directory is missing, it will be fetched via `gdown`.
+The telemetry dataset (~65 GB) is hosted on [HuggingFace](https://huggingface.co/datasets/cdreetz/OpenRCA) and downloaded automatically — no manual setup needed. Each sandbox downloads the relevant system's data on rollout start.
 
-To download manually or ahead of time:
-
-```python
-from openrca import download_dataset
-download_dataset("dataset")
-```
-
-Or from the command line:
+The host also auto-downloads `query.csv` files on first run for dataset building. To pre-download:
 
 ```bash
-python -c "from openrca import download_dataset; download_dataset('dataset')"
+python -c "from src.download import download_dataset; download_dataset('dataset')"
 ```
-
-<details>
-<summary>Expected directory structure after download</summary>
-
-```
-dataset/
-├── Bank/
-│   ├── query.csv
-│   ├── record.csv
-│   └── telemetry/
-├── Market/
-│   ├── cloudbed-1/
-│   │   ├── query.csv
-│   │   ├── record.csv
-│   │   └── telemetry/
-│   └── cloudbed-2/
-│       ├── query.csv
-│       ├── record.csv
-│       └── telemetry/
-└── Telecom/
-    ├── query.csv
-    ├── record.csv
-    └── telemetry/
-```
-
-</details>
 
 ### Installation
 
 ```bash
-prime env install openrca
+prime env install openrca-env
 ```
 
 ## Usage
@@ -68,22 +35,24 @@ prime env install openrca
 ### Evaluation
 
 ```bash
-# Quick smoke test
-prime eval run openrca -m gpt-4.1-mini -n 5
+# Quick smoke test (1 system, few examples)
+vf-eval openrca_env -m gpt-4.1-mini -n 5 -a '{"systems": ["Telecom"]}'
 
 # Full evaluation on a specific system
-prime eval run openrca -m gpt-4.1-mini -n 50 -r 1 -s -x '{"systems": ["Bank"]}'
+vf-eval openrca_env -m gpt-4.1-mini -n 50 -r 1 -s -a '{"systems": ["Bank"]}'
 
 # All systems
-prime eval run openrca -m gpt-4.1-mini -n 20 -r 1 -s
+vf-eval openrca_env -m gpt-4.1-mini -n 20 -r 1 -s
 ```
 
 ### Configuration
 
+Pass these via `-a` (env args):
+
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `data_dir` | `"dataset"` | Path to the OpenRCA dataset directory on the host |
-| `systems` | All systems | List of systems to include: `"Bank"`, `"Market/cloudbed-1"`, `"Market/cloudbed-2"`, `"Telecom"` |
+| `data_dir` | `"dataset"` | Path to query.csv files (auto-downloaded) |
+| `systems` | All systems | `"Bank"`, `"Market/cloudbed-1"`, `"Market/cloudbed-2"`, `"Telecom"` |
 | `max_turns` | `30` | Maximum tool-use turns per rollout |
 | `num_examples` | `-1` | Number of examples (-1 for all) |
 | `docker_image` | `"python:3.11-slim"` | Docker image for sandbox containers |
@@ -91,22 +60,20 @@ prime eval run openrca -m gpt-4.1-mini -n 20 -r 1 -s
 
 ## How It Works
 
-Each rollout runs in its own **isolated sandbox container** (via `PythonEnv` → `SandboxEnv`). This ensures that even if the agent writes or deletes files via the Python REPL, it cannot affect other concurrent rollouts.
+Each rollout runs in its own **isolated sandbox container** (via `PythonEnv` / `SandboxEnv`).
 
 Per-rollout flow:
-1. A sandbox container is created via the Prime Sandboxes API
-2. The relevant system's telemetry data is tar'd, uploaded, and extracted into the sandbox
-3. A persistent Python REPL worker is initialized with common imports and `DATA_DIR`
+1. A sandbox container is created (4 GB RAM, 50 GB disk)
+2. `huggingface_hub` is installed and the relevant system's telemetry data is downloaded from [cdreetz/OpenRCA](https://huggingface.co/datasets/cdreetz/OpenRCA)
+3. A persistent Python REPL is initialized with pandas, numpy, pytz, and `DATA_DIR`
 
 The environment exposes two tools:
 
-1. **`python`** — Executes code in a persistent Python REPL inside the sandbox, with pandas, numpy, and other libraries pre-imported. The `DATA_DIR` variable points to the telemetry data root.
+1. **`python`** — Persistent Python REPL with common imports pre-loaded. `DATA_DIR` points to the telemetry data root.
 
-2. **`list_directory`** — Lists files and directories within the telemetry data directory inside the sandbox.
+2. **`list_directory`** — Lists files and directories within the telemetry data directory.
 
-The model iteratively analyzes metrics, traces, and logs to identify root causes, then provides a structured JSON answer with the root cause datetime, component, and/or reason.
-
-For large datasets, build a custom Docker image with data pre-loaded and pass it via `docker_image` to avoid per-rollout uploads.
+The model iteratively analyzes metrics, traces, and logs to identify root causes, then provides a structured JSON answer.
 
 ### Scoring
 
@@ -118,13 +85,22 @@ Predictions are scored using the original OpenRCA evaluation methodology:
 
 ### Metrics
 
-- `openrca_score`: Primary reward (0.0–1.0) based on scoring criteria match
+- `openrca_score`: Primary reward (0.0-1.0) based on scoring criteria match
 - `difficulty_metric`: Task difficulty level (0=easy, 1=medium, 2=hard)
 
-## System Requirements
+## Project Structure
 
-- **Storage**: ~80 GB for the full telemetry dataset
-- **Memory**: 32 GB recommended (telemetry files can be large)
+```
+openrca_env/
+  openrca_env.py       # load_environment() + OpenRCAEnv class
+  src/
+    dataset.py          # Dataset builder (query.csv -> HF Dataset)
+    download.py         # Auto-download from HuggingFace
+    evaluation.py       # Scoring logic (ported from OpenRCA)
+    prompts.py          # System prompts, telemetry schemas, candidates
+  pyproject.toml
+  README.md
+```
 
 ## Reference
 
